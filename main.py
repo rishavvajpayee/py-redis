@@ -6,7 +6,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-if __name__  == "__main__":
+if __name__ == "__main__":
     try:
         run_server_sync()
     except Exception as error:
