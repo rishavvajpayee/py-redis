@@ -2,10 +2,12 @@
 Syncronus process Runner with IO multiplexing
 """
 
+import os
 import logging
 import selectors
 import socket
 from conf.config import Environment
+from predis.strings.resolve import resolve_set, resolve_get
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -35,14 +37,32 @@ def read_and_write(conn: socket.socket, sel: selectors.BaseSelector, total_conne
     """
     data = conn.recv(1000)
     if data:
-        conn.send(f"~ ".encode() + data)  # Hope this is Non-Blocking
+        if data.decode() == "nuke!\n":
+            sel.unregister(conn)
+            conn.close()
+            logger.critical("connection was force closed")
+            total_connections = [0]
+            os._exit(45)
+        elif data.decode() == "nuke\n":
+            sel.unregister(conn)
+            conn.close()
+            total_connections[0] -= 1
+            logger.info("connection was closed")
+
+        else:
+            method = data.decode().split(" ")[0]
+            if method == "SET":
+                resolve: str = resolve_set(data.decode())
+            if method == "GET":
+                resolve: str = resolve_get(data.decode())
+            conn.send(b"~ " + resolve.encode() + b"\n")  # Hope this is Non-Blocking
     else:
         sel.unregister(conn)
         conn.close()
         total_connections[0] -= 1
 
 
-def run_server_async():
+def run_server_async(args: list):
     """
     Running Predis
 
@@ -54,9 +74,30 @@ def run_server_async():
     3. setting the conf of socket to be Non blocking
     4. registering the acceptance of Connections
     """
+    HOST = None
+    PORT = None
+    if args:
+        if "-p" in args:
+            PORT_INDEX = args.index("-p") + 1
+            try:
+                PORT = int(args[PORT_INDEX])
+            except TypeError as error:
+                raise TypeError(f"incopatible type for PORT : {error}")
+        if "-h" in args:
+            HOST_INDEX = args.index("-h") + 1
+            try:
+                HOST = str(args[HOST_INDEX])
+            except TypeError as error:
+                raise TypeError(f"incopatible type for HOST : {error}")
+
     sel = selectors.DefaultSelector()
     sock = socket.socket()
-    sock.bind((str(Environment.HOST), int(Environment.PORT)))
+    sock.bind(
+        (
+            str(Environment.HOST) if HOST is None else HOST,
+            int(Environment.PORT) if PORT is None else PORT,
+        )
+    )
     sock.listen(100)
     sock.setblocking(False)
     sel.register(sock, selectors.EVENT_READ, accept)
