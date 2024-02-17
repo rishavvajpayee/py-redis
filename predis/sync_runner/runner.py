@@ -54,9 +54,7 @@ def run_server_async():
     3. setting the conf of socket to be Non blocking
     4. registering the acceptance of Connections
     """
-    sel: selectors.DefaultSelector = (
-        selectors.DefaultSelector()
-    )  # creating a selector -> DefaultSelector
+    sel = selectors.DefaultSelector()
     sock = socket.socket()
     sock.bind((str(Environment.HOST), int(Environment.PORT)))
     sock.listen(100)
