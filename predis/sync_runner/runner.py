@@ -7,7 +7,7 @@ import logging
 import selectors
 import socket
 from conf.config import Environment
-from predis.strings.resolve import resolve_set, resolve_get
+from predis.strings.resolve import resolve_set, resolve_get, resolve_ping
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -50,12 +50,19 @@ def read_and_write(conn: socket.socket, sel: selectors.BaseSelector, total_conne
             logger.info("connection was closed")
 
         else:
-            method = data.decode().split(" ")[0]
-            if method == "SET":
-                resolve: str = resolve_set(data.decode())
-            if method == "GET":
-                resolve: str = resolve_get(data.decode())
-            conn.send(b"~ " + resolve.encode() + b"\n")  # Hope this is Non-Blocking
+            request = data.decode()
+            method = request.split(" ")[0]
+            resolve = ""
+            match method:
+                case "SET":
+                    resolve = resolve_set(request)
+                case "GET":
+                    resolve = resolve_get(request)
+                case "PING", "ping":
+                    resolve = resolve_ping()
+                case _:
+                    resolve = request
+            conn.send(b"~ " + resolve.encode() + b"\r\n")  # Hope this is Non-Blocking
     else:
         sel.unregister(conn)
         conn.close()
@@ -94,8 +101,8 @@ def run_server_async(args: list):
     sock = socket.socket()
     sock.bind(
         (
-            str(Environment.HOST) if HOST is None else HOST,
-            int(Environment.PORT) if PORT is None else PORT,
+            str(Environment.HOST) if not HOST else HOST,
+            int(Environment.PORT) if not PORT else PORT,
         )
     )
     sock.listen(100)

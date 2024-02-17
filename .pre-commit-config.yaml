@@ -31,10 +31,6 @@ repos:
     rev: '1.7.0'
     hooks:
       - id: poetry-check
-      - id: poetry-export
-        args: ["-f", "requirements.txt", "-o", "requirements.txt", "--without-hashes"]
-      - id: poetry-export
-        args: ["--with", "dev", "-f", "requirements.txt", "-o", "requirements.dev.txt", "--without-hashes"]
 
   - repo: https://github.com/asottile/pyupgrade
     rev: v3.15.0
