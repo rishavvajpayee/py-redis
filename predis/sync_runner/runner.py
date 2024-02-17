@@ -1,3 +1,7 @@
+"""
+Syncronus process Runner with IO multiplexing
+"""
+
 import logging
 import selectors
 import socket
@@ -10,6 +14,10 @@ total_connections = [0]
 
 
 def accept(sock: socket.socket, sel: selectors.DefaultSelector, total_connections):
+    """
+    tasks :
+    1. I/O non blocking event for accepting connections
+    """
     logger.info(f"Waiting for connection |  curr : {total_connections}")
     connection, client_address = sock.accept()
     total_connections[0] += 1
@@ -20,20 +28,35 @@ def accept(sock: socket.socket, sel: selectors.DefaultSelector, total_connection
     sel.register(connection, selectors.EVENT_READ, read_and_write)
 
 
-def read_and_write(
-    connection: socket.socket, sel: selectors.BaseSelector, total_connections
-):
-    data = connection.recv(1000)
+def read_and_write(conn: socket.socket, sel: selectors.BaseSelector, total_connections):
+    """
+    tasks :
+    I/O Non blocking event for reading and writing buffers over the connection
+    """
+    data = conn.recv(1000)
     if data:
-        connection.send(f"~ ".encode() + data)  # Hope this is Non-Blocking
+        conn.send(f"~ ".encode() + data)  # Hope this is Non-Blocking
     else:
-        sel.unregister(connection)
-        connection.close()
+        sel.unregister(conn)
+        conn.close()
         total_connections[0] -= 1
 
 
 def run_server_async():
-    sel: selectors.DefaultSelector = selectors.DefaultSelector()
+    """
+    Running Predis
+
+    (main entry point to the application)
+
+    tasks :
+    1. creating a selector -> DefaultSelector
+    2. new socket
+    3. setting the conf of socket to be Non blocking
+    4. registering the acceptance of Connections
+    """
+    sel: selectors.DefaultSelector = (
+        selectors.DefaultSelector()
+    )  # creating a selector -> DefaultSelector
     sock = socket.socket()
     sock.bind((str(Environment.HOST), int(Environment.PORT)))
     sock.listen(100)
