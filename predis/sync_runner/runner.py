@@ -15,6 +15,11 @@ logger = logging.getLogger(__name__)
 total_connections = [0]
 
 
+def unregister_close(sel: selectors.BaseSelector, conn: socket.socket):
+    sel.unregister(conn)
+    conn.close()
+
+
 def accept(sock: socket.socket, sel: selectors.DefaultSelector, total_connections):
     """
     tasks :
@@ -45,21 +50,18 @@ def read_and_write(conn: socket.socket, sel: selectors.BaseSelector, total_conne
     data = conn.recv(1000)
     if data:
         if data.decode() == "nuke!\n":
-            sel.unregister(conn)
-            conn.close()
+            unregister_close(sel, conn)
             logger.critical("connection was force closed")
             total_connections = [0]
             os._exit(45)
         elif data.decode() == "nuke\n":
-            sel.unregister(conn)
-            conn.close()
+            unregister_close(sel, conn)
             total_connections[0] -= 1
             logger.info("connection was closed")
 
         else:
             request = data.decode()
             method = get_method(request)
-            print(f"METHOD : {method}")
             resolve = ""
             match method:
                 case "SET":
