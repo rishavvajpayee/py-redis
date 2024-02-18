@@ -30,6 +30,13 @@ def accept(sock: socket.socket, sel: selectors.DefaultSelector, total_connection
     sel.register(connection, selectors.EVENT_READ, read_and_write)
 
 
+def get_method(request: str):
+    if " " in request:
+        return request.split(" ")[0]
+    else:
+        return request.split("\n")[0]
+
+
 def read_and_write(conn: socket.socket, sel: selectors.BaseSelector, total_connections):
     """
     tasks :
@@ -51,14 +58,15 @@ def read_and_write(conn: socket.socket, sel: selectors.BaseSelector, total_conne
 
         else:
             request = data.decode()
-            method = request.split(" ")[0]
+            method = get_method(request)
+            print(f"METHOD : {method}")
             resolve = ""
             match method:
                 case "SET":
                     resolve = resolve_set(request)
                 case "GET":
                     resolve = resolve_get(request)
-                case "PING", "ping":
+                case "PING":
                     resolve = resolve_ping()
                 case _:
                     resolve = request
