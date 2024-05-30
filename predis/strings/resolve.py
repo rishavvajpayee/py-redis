@@ -13,7 +13,11 @@ def resolve_set(data: str) -> str:
 def resolve_get(data: str) -> str:
     list_data: list[str] = data.split(" ")
     key = list_data[1].split("\n")[0]
-    return str(key_dict[key])
+    try:
+        value = str(key_dict[key])
+        return value
+    except Exception as Error:
+        return "not found"
 
 
 def resolve_ping() -> str:
