@@ -46,7 +46,7 @@ def get_method(request: str):
         return request.split("\n")[0]
 
 
-def read_and_write(conn: socket.socket, sel: selectors.BaseSelector, total_connections):
+def read_and_write(conn: socket.socket, sel: selectors.BaseSelector, total_connections: list[int]):
     """
     tasks :
     I/O Non blocking event for reading and writing buffers over the connection
