@@ -7,13 +7,17 @@ import logging
 import selectors
 import socket
 from conf.config import Environment
-from predis.strings.resolve import resolve_set, resolve_get, resolve_ping
+from .resolver import (
+    resolve_ping,
+    resolve_get,
+    resolve_set,
+)
+from conf.enums import Methods
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 total_connections = [0]
-
 
 def unregister_close(sel: selectors.BaseSelector, conn: socket.socket):
     sel.unregister(conn)
@@ -47,31 +51,33 @@ def read_and_write(conn: socket.socket, sel: selectors.BaseSelector, total_conne
     tasks :
     I/O Non blocking event for reading and writing buffers over the connection
     """
-    data = conn.recv(1000)
+    data = conn.recv(1024)
     if data:
-        if data.decode() == "nuke!\n":
-            unregister_close(sel, conn)
-            logger.critical("connection was force closed")
-            total_connections = [0]
-            os._exit(45)
-        elif data.decode() == "nuke\n":
-            unregister_close(sel, conn)
-            total_connections[0] -= 1
-            logger.info("connection was closed")
-
-        else:
-            request = data.decode()
-            method = get_method(request)
-            resolve = ""
-            match method:
-                case "SET":
-                    resolve = resolve_set(request)
-                case "GET":
-                    resolve = resolve_get(request)
-                case "PING":
-                    resolve = resolve_ping()
-                case _:
-                    resolve = request
+        request = data.decode()
+        method = get_method(request)
+        resolve = ""
+        nuked = False
+        match method:
+            case Methods.SET:
+                resolve = resolve_set(request)
+            case Methods.GET:
+                resolve = resolve_get(request)
+            case Methods.PING:
+                resolve = resolve_ping()
+            case Methods.NUKE:
+                unregister_close(sel, conn)
+                total_connections[0] -= 1
+                logger.info("connection was closed")
+                nuked = True
+            case Methods.NUKEBANG:
+                unregister_close(sel, conn)
+                logger.critical("connection was force closed")
+                total_connections = [0]
+                nuked = True
+                os._exit(45)
+            case _:
+                resolve = request
+        if not nuked:
             conn.send(b"~ " + resolve.encode() + b"\r\n")  # Hope this is Non-Blocking
     else:
         sel.unregister(conn)
@@ -79,10 +85,9 @@ def read_and_write(conn: socket.socket, sel: selectors.BaseSelector, total_conne
         total_connections[0] -= 1
 
 
-def run_server_async(args: list):
+def run_server(args: None | list):
     """
     Running Predis
-
     (main entry point to the application)
 
     tasks :
@@ -99,13 +104,13 @@ def run_server_async(args: list):
             try:
                 PORT = int(args[PORT_INDEX])
             except TypeError as error:
-                raise TypeError(f"incopatible type for PORT : {error}")
+                raise TypeError(f"incompatible type for PORT : {error}")
         if "-h" in args:
             HOST_INDEX = args.index("-h") + 1
             try:
                 HOST = str(args[HOST_INDEX])
             except TypeError as error:
-                raise TypeError(f"incopatible type for HOST : {error}")
+                raise TypeError(f"incompatible type for HOST : {error}")
 
     sel = selectors.DefaultSelector()
     sock = socket.socket()
@@ -115,6 +120,8 @@ def run_server_async(args: list):
             int(Environment.PORT) if not PORT else PORT,
         )
     )
+
+    logger.info(f"Binding HOST : http://{HOST}:{PORT}")
     sock.listen(100)
     sock.setblocking(False)
     sel.register(sock, selectors.EVENT_READ, accept)
